@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { test } from 'node:test';
-import { fixture } from '../src/inputs.js';
+import { fixture, webhookEvent } from '../src/inputs.js';
 import { start } from '../src/server.js';
 
 async function until(check, ms = 12000) {
@@ -108,16 +108,16 @@ test('dispatch retries on the same robot after a lost acknowledgement', async t 
   assert.equal((await call('/webhooks/orders', opts, 202)).queued, true);
   assert.equal((await call('/webhooks/orders', opts, 202)).queued, false);
   await until(() => app.store.getOrder(1)?.status === 'dispatch_pending');
-  const second = { ...order, order_id: 'b' };
-  await call('/webhooks/orders', { ...opts, body: JSON.stringify(second) }, 202);
-  await until(() => app.store.getOrder(2)?.status === 'dispatched');
-  assert.equal(app.store.history(2).at(-1).detail.robot, 'robot-b');
+  app.store.enqueue(['b', 'c', 'd'].map(id => webhookEvent({ ...order, order_id: id })));
+  await until(() => [2, 3, 4].every(id => app.store.getOrder(id)?.status === 'dispatched'));
+  assert.deepEqual([2, 3, 4].map(id => app.store.history(id).at(-1).detail.robot),
+    ['robot-b', 'robot-c', 'robot-d']);
   await until(() => app.store.getOrder(1)?.status === 'dispatched');
   const timeline = await call('/api/orders/1/events');
   assert.deepEqual(timeline.map(event => event.kind), ['created', 'dispatch_assigned', 'dispatch_retry', 'dispatched']);
   assert.equal(new Set(timeline.slice(1).map(event => event.detail.dispatchId)).size, 1);
   assert.equal(new Set(timeline.slice(1).map(event => event.detail.robot)).size, 1);
-  assert.equal(app.store.mockJobCount(), 2);
+  assert.equal(app.store.mockJobCount(), 4);
 });
 
 test('a polling failure preserves its checkpoint and a restart resumes from the committed checkpoint', async t => {

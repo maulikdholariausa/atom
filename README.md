@@ -6,9 +6,15 @@ Requires **Node.js 24 or newer**. From the repository root:
 node src/server.js
 ```
 
-Open **http://127.0.0.1:3000** and click **Run demo**. The server initializes SQLite on first launch. The demo sends the webhook fixture over local HTTP, polls the fixture-backed API, and imports all four CSVs. Filter by source or status and select an order number to see its items and event history. Due orders are assigned to two simulated robots once fixture ingestion completes. Scheduled orders stay queued until their meal time.
+Open **http://127.0.0.1:3000** and click **Run demo**. The server initializes SQLite on first launch. The demo sends the webhook fixture over local HTTP, polls the fixture-backed API, and imports all four CSVs. Filter by source or status and select an order number to see its items and event history. Due orders are assigned to four simulated robots (`robot-a` through `robot-d`) once fixture ingestion completes. Scheduled orders stay queued until their meal time.
 
-Use **Clear database** and type `clear` to reset saved orders, history, checkpoints, and mock robot jobs. You can then run the demo from the beginning. A configured external poller resumes after the reset and can import data again.
+### Rerun the demo from scratch
+
+1. Wait for the current demo to finish.
+2. Click **Clear database**, type `clear` in the confirmation dialog, and confirm. This deletes all saved orders, history, checkpoints, and mock robot jobs.
+3. Click **Run demo** again to replay all three sources from the beginning.
+
+A configured external poller resumes after the reset and can import data again.
 
 The demo uses the supplied fixtures in `fixtures/`. On a fresh database it produces 999 webhook orders, 60 polling orders, and 267 CSV orders. Re-running it on the same database is safe. To run against a fresh database, use a different file:
 
@@ -60,5 +66,3 @@ The robot payload contains `dispatch_id`, `robot_id`, `order_id`, `items` (each 
 | `POLL_INTERVAL_MS` | `5000` |
 
 The polling adapter expects a successful JSON response with `response: 200`, a `data` object keyed by item ID, and a string `next_checkpoint`. It sends the last committed checkpoint as `time_since` and starts a configured provider from the Unix epoch. A real provider with a different format needs an adapter. The local mock and demo controls are designed for a single trusted reviewer on loopback. The webhook mock has no provider signature scheme, and the app has no network authorization layer.
-
-[AI session log](AI_SESSION.md)

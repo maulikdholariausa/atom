@@ -34,7 +34,9 @@ main { padding-block: 28px; }
   border-radius: 7px; cursor: pointer; font-size: .85rem; font-weight: 600;
 }
 .more-metrics summary:focus-visible { outline: 2px solid #6b7eff; outline-offset: 2px; }
-.more-metrics .overview { margin: 12px 0 0; }
+.more-metrics[open] { display: flex; flex-direction: column; }
+.more-metrics summary { order: 1; }
+.more-metrics .overview { margin: 0 0 12px; }
 .more-metrics:not([open]) .hide-metrics, .more-metrics[open] .show-metrics { display: none; }
 .overview .metric-review { background: #fff4f2; border-color: #edc3be; }
 .overview .metric-review span, .overview .metric-review strong { color: #8f2b26; }

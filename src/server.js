@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { randomInt } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,8 +14,11 @@ const files = new Map([
   ['/style.css', ['style.css', 'text/css']]
 ]);
 const today = () => new Date().toISOString().slice(0, 10);
-const robots = ['robot-a', 'robot-b'];
+const robots = ['robot-a', 'robot-b', 'robot-c', 'robot-d'];
 const MAX_REQUEST_BODY_BYTES = 2_000_000;
+const MOCK_ACK_DELAY_MIN_MS = 1_100;
+const MOCK_ACK_DELAY_MAX_MS = 1_800;
+const MOCK_ACK_DELAY_PROBABILITY = 0.04;
 const orderIdRoute = /^\/api\/orders\/([1-9]\d*)(\/events)?$/;
 
 function send(res, status, body, type = 'application/json') {
@@ -51,7 +55,9 @@ function step(event) {
 
 export async function start({
   port = 3000, host = '127.0.0.1', database = 'data/orders.sqlite',
-  ordersApiUrl, ordersApiToken, pollMs = 5000, dropFirstRobotReply = true
+  ordersApiUrl, ordersApiToken, pollMs = 5000, dropFirstRobotReply = true,
+  robotReplyDelay = first => first || Math.random() < MOCK_ACK_DELAY_PROBABILITY
+    ? randomInt(MOCK_ACK_DELAY_MIN_MS, MOCK_ACK_DELAY_MAX_MS + 1) : 0
 } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid port.');
   if (!Number.isFinite(pollMs) || pollMs < 50) throw new Error('Polling interval must be at least 50 ms.');
@@ -65,6 +71,7 @@ export async function start({
   const stop = new AbortController();
   const initialDemo = () => ({ phase: 'idle', polling: 'idle', pollError: null, error: null, csv: [] });
   const demo = initialDemo();
+  let firstRobotAcknowledgment = true;
   let clearing = false;
   const activeWrites = new Set();
 
@@ -204,6 +211,7 @@ export async function start({
         await Promise.allSettled(activeWrites);
         store.clear();
         Object.assign(demo, initialDemo());
+        firstRobotAcknowledgment = true;
       } finally {
         clearing = false;
       }
@@ -265,8 +273,8 @@ export async function start({
         });
         return send(res, 202, { started: true });
       }
-      const robot = path.match(/^\/mock\/robots\/(robot-[ab])$/)?.[1];
-      if (robot) {
+      const robot = path.match(/^\/mock\/robots\/([^/]+)$/)?.[1];
+      if (robots.includes(robot)) {
         const payload = await readJson(req);
         if (!payload || payload.robot_id !== robot || typeof payload.dispatch_id !== 'string'
           || !payload.dispatch_id || !Array.isArray(payload.items)) throw new InputError('Invalid dispatch payload.');
@@ -277,6 +285,9 @@ export async function start({
           res.destroy();
           return;
         }
+        const delay = robotReplyDelay(firstRobotAcknowledgment);
+        firstRobotAcknowledgment = false;
+        if (delay > 0) await sleep(delay, undefined, { signal: stop.signal });
         return send(res, 200, { accepted: true, dispatch_id: payload.dispatch_id });
       }
     }
