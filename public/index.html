@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order dispatch</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header>
+    <div class="container masthead">
+      <h1>Order dispatch</h1>
+      <div class="header-actions">
+        <button id="open-reset" class="secondary">Clear database</button>
+        <button id="demo">Run demo</button>
+      </div>
+    </div>
+  </header>
+  <main class="container">
+    <section class="overview" aria-label="Order totals">
+      <div><span>Total orders</span><strong id="total">0</strong></div>
+      <div><span>Scheduled</span><strong id="scheduled">0</strong></div>
+      <div><span>Dispatched</span><strong id="dispatched">0</strong></div>
+      <div><span>Inbox pending</span><strong id="queued">0</strong></div>
+    </section>
+    <details class="more-metrics">
+      <summary class="secondary"><span class="show-metrics">Show more counts</span><span class="hide-metrics">Hide extra counts</span></summary>
+      <section class="overview" aria-label="Additional order and inbox counts">
+        <div><span>Ready</span><strong id="ready-count">0</strong></div>
+        <div><span>Dispatch pending</span><strong id="dispatch-pending-count">0</strong></div>
+        <div><span>Cancelled</span><strong id="cancelled-count">0</strong></div>
+        <div><span>Externally fulfilled</span><strong id="external-count">0</strong></div>
+        <div class="metric-review"><span>Orders needing review</span><strong id="order-review-count">0</strong></div>
+        <div class="metric-review"><span>Dispatches needing review</span><strong id="dispatch-review-count">0</strong></div>
+        <div class="metric-review"><span>Failed inbox events</span><strong id="inbox-failed-count">0</strong></div>
+      </section>
+    </details>
+    <p id="notice" role="status" hidden></p>
+    <section class="panel">
+      <div class="toolbar">
+        <h2>Orders <span id="matching-count"></span></h2>
+        <div class="filters">
+          <div class="filter-field">
+            <div class="filter-label">
+              <label for="source">Source</label>
+              <button type="button" class="info-button" aria-label="Explain order sources" aria-haspopup="dialog" data-help="source-help">i</button>
+            </div>
+            <select id="source">
+              <option value="">All sources</option><option value="webhook">Webhook</option><option value="polling">Polling API</option><option value="csv">CSV</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <div class="filter-label">
+              <label for="status">Status</label>
+              <button type="button" class="info-button" aria-label="Explain order statuses" aria-haspopup="dialog" data-help="status-help">i</button>
+            </div>
+            <select id="status">
+              <option value="">All statuses</option><option value="ready">Ready</option><option value="scheduled">Scheduled</option><option value="cancelled">Cancelled</option>
+              <option value="dispatch_pending">Dispatch pending</option><option value="dispatched">Dispatched</option>
+              <option value="order_review">Order needs review</option><option value="dispatch_review">Dispatch needs review</option><option value="external_fulfilled">Externally fulfilled</option>
+            </select>
+          </div>
+          <button id="open-import" class="secondary">Import CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Order</th><th scope="col">Customer / reference</th><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Scheduled time (UTC)</th></tr></thead>
+          <tbody id="orders"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <span id="range"></span>
+        <label>Orders per page
+          <select id="page-size">
+            <option value="10">10</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
+        <div role="group" aria-label="Order pagination">
+          <button id="first" class="secondary" disabled>First</button>
+          <button id="prev" class="secondary" disabled>Previous</button>
+          <button id="next" class="secondary" disabled>Next</button>
+          <button id="last" class="secondary" disabled>Last</button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <dialog id="source-help" aria-labelledby="source-help-title">
+    <div class="dialog-head"><h2 id="source-help-title">Order sources</h2><form method="dialog"><button class="secondary">Close</button></form></div>
+    <dl>
+      <dt>All sources</dt><dd>Show orders from every source.</dd>
+      <dt>Webhook</dt><dd>An order provider pushes orders and updates to the app, sometimes in bursts.</dd>
+      <dt>Polling API</dt><dd>The app periodically asks an external API for changes since its last saved checkpoint.</dd>
+      <dt>CSV</dt><dd>Orders come from uploaded files. Each row specifies a meal and whether it is for the following day.</dd>
+    </dl>
+  </dialog>
+  <dialog id="status-help" aria-labelledby="status-help-title">
+    <div class="dialog-head"><h2 id="status-help-title">Order statuses</h2><form method="dialog"><button class="secondary">Close</button></form></div>
+    <dl>
+      <dt>All statuses</dt><dd>Show orders at every stage.</dd>
+      <dt>Ready</dt><dd>Eligible for dispatch and waiting for a robot assignment.</dd>
+      <dt>Scheduled</dt><dd>Waiting for a future meal time before it can be dispatched.</dd>
+      <dt>Cancelled</dt><dd>The order was cancelled before robot assignment.</dd>
+      <dt>Dispatch pending</dt><dd>A robot has been assigned and the app is waiting for acknowledgment.</dd>
+      <dt>Dispatched</dt><dd>The robot acknowledged the order for assembly.</dd>
+      <dt>Order needs review</dt><dd>The order has no items and is held for review.</dd>
+      <dt>Dispatch needs review</dt><dd>The app could not confirm acceptance after five attempts with the assigned robot.</dd>
+      <dt>Externally fulfilled</dt><dd>The polling provider reports every item as with the courier, delivered, or cancelled, with at least one item still fulfilled externally.</dd>
+    </dl>
+  </dialog>
+  <dialog id="detail" aria-labelledby="detail-title">
+    <div class="dialog-head"><h2 id="detail-title">Order details</h2><form method="dialog"><button class="secondary">Close</button></form></div>
+    <div id="detail-body"></div>
+  </dialog>
+  <dialog id="import" aria-labelledby="import-title">
+    <div class="dialog-head"><h2 id="import-title">Import CSV</h2><form method="dialog"><button class="secondary">Close</button></form></div>
+    <form id="upload">
+      <label>CSV file <input id="file" type="file" accept=".csv,text/csv" required></label>
+      <label>Export date (UTC) <input id="date" type="date" required></label>
+      <button>Upload</button>
+      <p id="import-result" role="status"></p>
+    </form>
+  </dialog>
+  <dialog id="reset" aria-labelledby="reset-title" aria-describedby="reset-description">
+    <h2 id="reset-title">Clear database?</h2>
+    <p id="reset-description">This deletes all saved orders, order history, and demo progress.</p>
+    <form id="reset-form">
+      <label>Type <strong>clear</strong> to confirm
+        <input id="reset-confirmation" autocomplete="off" spellcheck="false" required>
+      </label>
+      <p id="reset-error" role="alert" hidden></p>
+      <div class="header-actions">
+        <button id="cancel-reset" type="button" class="secondary">Cancel</button>
+        <button id="confirm-reset" class="danger" disabled>Clear database</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
