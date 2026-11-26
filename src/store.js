@@ -66,6 +66,10 @@ export function openStore(file) {
     AND (fulfil_at IS NULL OR fulfil_at <= ?) AND NOT EXISTS (SELECT 1 FROM inbox i
       WHERE i.source=o.source AND i.order_key=o.order_key AND i.processed_at IS NULL)
     ORDER BY fulfil_at,id LIMIT 1`);
+  const pendingWork = query(`SELECT
+    EXISTS (SELECT 1 FROM inbox WHERE processed_at IS NULL AND attempts < 5)
+    OR EXISTS (SELECT 1 FROM orders WHERE status IN ('ready','dispatch_pending')
+      OR (status='scheduled' AND fulfil_at <= ?)) AS blocked`);
   const setStatus = query('UPDATE orders SET status=?,updated_at=? WHERE id=?');
 
   function transaction(fn) {
@@ -189,6 +193,7 @@ export function openStore(file) {
   return {
     close: () => db.close(),
     enqueue, processInbox, claimDispatches, dispatchResult,
+    hasPendingWork: () => Boolean(pendingWork.get(iso()).blocked),
     clear() {
       transaction(() => db.exec(`
         DELETE FROM dispatches;

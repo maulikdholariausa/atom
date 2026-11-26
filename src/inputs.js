@@ -15,7 +15,7 @@ function digest(value) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
-export function webhookEvent(payload, deliveryId) {
+export function webhookEvent(payload) {
   const { order_id: id, order_source: provider, first_name, last_name,
     restaurant, total, items, notes, update, scheduled_at } = payload ?? {};
   if (typeof id !== 'string' || !id.trim() || typeof provider !== 'string' || !provider.trim()
@@ -29,7 +29,7 @@ export function webhookEvent(payload, deliveryId) {
     restaurant, items: items.map(name => ({ name })), notes, total,
     fulfilAt: scheduled_at ? new Date(scheduled_at).toISOString() : null };
   return { source: 'webhook', orderKey: JSON.stringify([provider, id]),
-    eventKey: deliveryId ? JSON.stringify([provider, deliveryId]) : digest([order, update]), cancelled, order };
+    eventKey: digest([order, update]), cancelled, order };
 }
 
 export function pollingEvents(data, checkpoint, stream) {

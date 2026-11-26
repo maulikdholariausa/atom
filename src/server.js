@@ -73,6 +73,8 @@ export async function start({
   const demo = initialDemo();
   let firstRobotAcknowledgment = true;
   let clearing = false;
+  const canClearDatabase = () => !clearing && demo.phase !== 'running' && !store.hasPendingWork();
+  const resetBlockedMessage = 'Wait for ingestion and ready or pending dispatches to finish before clearing the database.';
   const activeWrites = new Set();
 
   async function trackWrite(work) {
@@ -203,12 +205,13 @@ export async function start({
         || (await readJson(req))?.confirmation !== 'clear') {
         throw new InputError('Type clear to confirm the database reset.');
       }
-      if (clearing || demo.phase === 'running') {
-        return send(res, 409, { error: 'Wait for the current operation to finish before clearing the database.' });
+      if (!canClearDatabase()) {
+        return send(res, 409, { error: resetBlockedMessage });
       }
       clearing = true;
       try {
         await Promise.allSettled(activeWrites);
+        if (store.hasPendingWork()) return send(res, 409, { error: resetBlockedMessage });
         store.clear();
         Object.assign(demo, initialDemo());
         firstRobotAcknowledgment = true;
@@ -240,7 +243,7 @@ export async function start({
         if (!order) return send(res, 404, { error: 'Order not found.' });
         return send(res, 200, match[2] ? store.history(id) : order);
       }
-      if (path === '/api/status') return send(res, 200, { ...store.stats(), demo });
+      if (path === '/api/status') return send(res, 200, { ...store.stats(), demo, canClearDatabase: canClearDatabase() });
       if (path === '/mock/orders') {
         const cursor = url.searchParams.get('time_since') ?? '0';
         const index = Number(cursor);
@@ -256,7 +259,7 @@ export async function start({
     }
     if (req.method === 'POST') {
       if (path === '/webhooks/orders') {
-        const event = webhookEvent(await readJson(req), req.headers['x-delivery-id']);
+        const event = webhookEvent(await readJson(req));
         return send(res, 202, { queued: Boolean(store.enqueue([event])) });
       }
       if (path === '/api/import/csv') {

@@ -10,7 +10,7 @@ Open **http://127.0.0.1:3000** and click **Run demo**. The server initializes SQ
 
 ### Rerun the demo from scratch
 
-1. Wait for the current demo to finish.
+1. Wait for ingestion and due dispatches to finish. **Clear database** becomes available once there are no queued inbox events, ready orders, or pending dispatches.
 2. Click **Clear database**, type `clear` in the confirmation dialog, and confirm. This deletes all saved orders, history, checkpoints, and mock robot jobs.
 3. Click **Run demo** again to replay all three sources from the beginning.
 
@@ -26,7 +26,7 @@ Run the integration tests with `node --test`. They listen on ephemeral loopback 
 
 ## Try individual inputs
 
-- **Webhook.** Send JSON with `order_id`, `order_source`, and `items` to `POST /webhooks/orders`. Optional fields include `scheduled_at` (ISO 8601 with a timezone) and `update: ["cancelled"]`. The demo replays fixture requests in bursts and preserves order within each external order. An optional `X-Delivery-Id` header supplies the event identity.
+- **Webhook.** Send JSON with `order_id`, `order_source`, and `items` to `POST /webhooks/orders`. Optional fields include `scheduled_at` (ISO 8601 with a timezone) and `update: ["cancelled"]`. The demo replays fixture requests in bursts and preserves order within each external order.
 - **Polling.** The demo calls `GET /mock/orders?time_since=0` through the same HTTP client used for configured providers. The fixture mock returns a line-index checkpoint and emits the recorded errors once per position. Retrying the same position returns the recovered data, including any items recorded in the partial response.
 - **CSV.** Use **Import CSV** or post the raw file to `POST /api/import/csv?date=YYYY-MM-DD`. Use the same export date for successive snapshots of the same survey. The response reports queued rows, duplicates, and invalid records. The demo remembers the export date it used on its first run.
 
@@ -35,7 +35,6 @@ For example:
 ```sh
 curl -i http://127.0.0.1:3000/webhooks/orders \
   -H 'Content-Type: application/json' \
-  -H 'X-Delivery-Id: sample-001' \
   -d '{"order_id":"sample-1","order_source":"manual","items":["Sandwich"]}'
 ```
 
@@ -70,7 +69,7 @@ Node runs the HTTP server, static frontend, ingestion and dispatch loops, and lo
 
 | Pipeline | Identity and processing |
 |---|---|
-| Webhook | An order is scoped by provider and external order ID. Delivery IDs deduplicate retries when available. Otherwise a fingerprint of the normalized payload identifies repeats. The handler commits to the SQLite inbox before returning HTTP 202. Orders with empty item lists remain visible for review and cannot be dispatched. |
+| Webhook | An order is scoped by provider and external order ID. A fingerprint of the normalized payload identifies repeated events. The handler commits to the SQLite inbox before returning HTTP 202. Orders with empty item lists remain visible for review and cannot be dispatched. |
 | Polling | The item keys identify lines. The numeric `order` field groups those lines into orders. Each response merges line deltas into the previous state. The HTTP client saves a successful batch and its checkpoint in one transaction. Any error, including a partial HTTP 500, leaves the checkpoint in place. |
 | CSV | The survey has no order ID, so identity uses normalized row data, the calculated meal time, and an occurrence number for identical rows within an export. Successive fixture uploads add 75, 39, 75, and 78 orders. Without a source ID, a changed row appears as a second order. The demo schedules breakfast at 08:00, lunch at 12:00, and dinner at 18:00 UTC on the export date or the following day. |
 

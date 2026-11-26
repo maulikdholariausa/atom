@@ -37,7 +37,7 @@ I used OpenAI Codex to review the homework brief, explore the sample data, discu
 ## Implementation and follow-up
 
 1. OK, let's build it. I want to be able to start the app and run the demo from the dashboard.
-2. Can the webhook use `X-Delivery-Id` to recognize retries? Can we also validate the payload and reject requests over 2 MB?
+2. Can we validate webhook payloads and reject requests over 2 MB?
 3. Can we add a button to clear the database so I can start the demo over? Have it ask me to type `clear` first.
 4. Can I upload a CSV from the dashboard and choose its export date? Can we pass that date to the import endpoint so the app knows what `tomorrow` means for that file?
 5. When I click an order, can I see all its items and a timeline of what happened to it?

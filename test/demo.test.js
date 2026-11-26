@@ -54,7 +54,7 @@ test('orders API respects page size, offset, and filtered totals', async t => {
 });
 
 test('the demo ingests all fixtures, deduplicates repeat uploads, and exposes history', async t => {
-  const app = await start({ port: 0, database: ':memory:' });
+  const app = await start({ port: 0, database: ':memory:', robotReplyDelay: () => 0 });
   t.after(() => app.close());
   const call = client(app);
   const ui = await fetch(app.url);
@@ -89,6 +89,9 @@ test('the demo ingests all fixtures, deduplicates repeat uploads, and exposes hi
   });
   await call('/api/reset', reset('Clear'), 400);
   assert.equal(await orderCount('csv'), 267);
+  assert.equal((await call('/api/status')).canClearDatabase, false);
+  await call('/api/reset', reset('clear'), 409);
+  await until(async () => (await call('/api/status')).canClearDatabase, 20_000);
   await call('/api/reset', reset('clear'));
   assert.equal((await call('/api/orders')).count, 0);
   assert.equal((await call('/api/status')).demo.phase, 'idle');

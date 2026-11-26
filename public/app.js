@@ -17,6 +17,7 @@ let openOrder;
 let renderSignature;
 let detailSignature;
 let resetPending = false;
+let canClearDatabase = false;
 let resetNotice = false;
 
 function node(tag, text, className) {
@@ -151,7 +152,10 @@ async function refresh() {
     })) byId(id).textContent = countFormat.format(value);
     const { demo } = stats;
     byId('demo').disabled = resetPending || demo.phase === 'running';
-    byId('open-reset').disabled = resetPending || demo.phase === 'running';
+    canClearDatabase = stats.canClearDatabase;
+    byId('open-reset').disabled = resetPending || !canClearDatabase;
+    byId('open-reset').title = canClearDatabase ? '' : 'Available after ingestion and dispatch finish';
+    confirmReset.disabled = resetPending || !canClearDatabase || confirmation.value !== 'clear';
     if (demo.phase === 'running') notice('Demo running. Polling: ' + demo.polling + '.');
     else if (demo.phase === 'failed') notice('Demo failed: ' + demo.error);
     else if (stats.failed) notice(stats.failed + ' inbox events need review.');
@@ -228,7 +232,7 @@ byId('open-reset').addEventListener('click', () => {
   confirmation.focus();
 });
 confirmation.addEventListener('input', () => {
-  confirmReset.disabled = confirmation.value !== 'clear';
+  confirmReset.disabled = !canClearDatabase || confirmation.value !== 'clear';
   resetError.hidden = true;
 });
 cancelReset.addEventListener('click', () => resetDialog.close());
@@ -237,7 +241,7 @@ resetDialog.addEventListener('cancel', event => {
 });
 resetForm.addEventListener('submit', async event => {
   event.preventDefault();
-  if (resetPending || confirmation.value !== 'clear') return;
+  if (resetPending || !canClearDatabase || confirmation.value !== 'clear') return;
   resetPending = true;
   confirmReset.disabled = cancelReset.disabled = confirmation.disabled = true;
   try {
@@ -254,7 +258,7 @@ resetForm.addEventListener('submit', async event => {
     resetError.hidden = false;
   } finally {
     resetPending = false;
-    confirmReset.disabled = cancelReset.disabled = confirmation.disabled = false;
+    cancelReset.disabled = confirmation.disabled = false;
     await refresh();
   }
 });
