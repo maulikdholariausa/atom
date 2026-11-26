@@ -41,6 +41,31 @@ curl -i http://127.0.0.1:3000/webhooks/orders \
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    W["Webhook sender<br/>Demo replays webhook_orders.jsonl in bursts"]
+    P["External orders API<br/>Demo serves api_responses.jsonl"]
+    C["CSV uploads<br/>orders_1.csv through orders_4.csv"]
+
+    W -->|"Pushes one POST per payload"| H["Webhook endpoint"]
+    T["Polling worker"] -->|"GET changes since last checkpoint"| P
+    P -->|"Returns a batch of changes"| T
+    C -->|"Uploads one file at a time"| I["CSV importer"]
+
+    H -->|"Saves payload, then replies 202"| Q[("Shared SQLite inbox")]
+    T -->|"Saves batch and checkpoint together"| Q
+    I -->|"Saves new rows only"| Q
+
+    Q -->|"Drains pending events in small batches"| B["Order worker"]
+    B -->|"Applies changes and records history"| D[("Orders and event history")]
+    D -->|"Serves status and history"| U["Orders API and frontend"]
+    D -->|"Finds orders ready now or due"| S["Dispatch worker"]
+    S -->|"Sends order payload"| R["Robot mock"]
+    S -->|"Records dispatched on success"| D
+```
+
+The **inbox is where work waits** when arrivals outpace processing. A webhook burst, a large polling response, or a CSV upload can all add work to the same inbox. The order worker processes it in small batches.
+
 Node runs the HTTP server, static frontend, ingestion and dispatch loops, and local HTTP mocks in one process. SQLite stores the durable state. Node's built-in HTTP and SQLite modules keep startup to one command. The frontend uses browser APIs and serves from the same origin. SQLite writes are synchronous, so CSV inserts and inbox processing use bounded batches and yield between them.
 
 | Pipeline | Identity and processing |
